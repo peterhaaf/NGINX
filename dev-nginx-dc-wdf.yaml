@@ -1,0 +1,79 @@
+apiVersion: v1
+kind: DeploymentConfig
+metadata:
+  labels:
+    app: nginx-wdf
+  name: nginx-wdf
+  namespace: dev
+spec:
+  replicas: 1
+  selector:
+    app: nginx-wdf
+  strategy:
+    resources: {}
+    rollingParams:
+      intervalSeconds: 1
+      maxSurge: 25%
+      maxUnavailable: 25%
+      timeoutSeconds: 600
+      updatePeriodSeconds: 1
+    type: Rolling
+  template:
+    metadata:
+      annotations:
+        pod.alpha.kubernetes.io/initialized: "true"
+      labels:
+        app: nginx-wdf
+    spec:
+      containers:
+      - name: nginx
+        image: 160302246078.dkr.ecr.eu-west-1.amazonaws.com/nginx:ng-proxy
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 80
+          protocol: TCP
+        resources: {}
+        terminationMessagePath: /dev/termination-log
+        env:
+          - name: NGINX_SERVER_NAME
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath:  metadata.name
+          - name: NGINX_ECOM_URL
+            value: "http://ecom-wdf.stage.svc.cluster.local/"
+          - name: NGINX_ECOM_PORT
+            value: "86"
+          - name: NGINX_PDF_URL
+            value: "http://pdf-wdf.stage.svc.cluster.local/"
+          - name: NGINX_SOLR_URL
+            value: "http://search-wdf.stage.svc.cluster.local/"
+          - name: NGINX_PUBLIC_IP
+            value: "stage-app10.dmzwdf.sap.corp"
+          - name: NGINX_PORT
+            value: "80"
+        readinessProbe:
+          exec:
+            command:
+            - /usr/share/nginx/scripts/readiness_probe.sh
+          initialDelaySeconds: 30
+          timeoutSeconds: 5
+      dnsPolicy: Default
+      restartPolicy: Always
+      imagePullSecrets:
+        - name: tangent-aws
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+      nodeSelector:
+         stage-node: "true"
+         region: "wdf"
+  test: false
+  triggers:
+  - type: ConfigChange
+  - imageChangeParams:
+      containerNames:
+      - nginx
+      from:
+        kind: ImageStreamTag
+        name: tangent:ng-proxy
+    type: ImageChange
